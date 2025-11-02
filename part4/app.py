@@ -75,13 +75,24 @@ def print_results(query: str, results, highlight: bool):
 
 def combine_results(result1, result2):
     # ToDo 1) Copy your solution from exercise 3
-    combined = result1
-
+    combined = result1.copy()
+    combined["title_spans"] = result1["title_spans"] + result2["title_spans"]
+    merged_lines = {}
+    for line in result1["line_matches"]:
+        merged_lines[line["line_no"]] = line.copy()
+        for line in result2["line_matches"]:
+            if line["line_no"] in merged_lines:
+                merged_lines[line["line_no"]]["spans"] += line["spans"]
+            else:
+                merged_lines[line["line_no"]] = line.copy()
+    combined["line_matches"] = sorted(merged_lines.values(), key=lambda x: x["line_no"])
+    combined["matches"] = len(combined["title_spans"]) + sum(len(lm["spans"]) for lm in combined["line_matches"])
     return combined
 
 
 def main() -> None:
     # ToDo 2 - Part 1 - Introduce a new variable to store the current search mode
+    search_mode = "AND"
     highlight = True
     print(BANNER)
     print()  # blank line after banner
@@ -111,6 +122,14 @@ def main() -> None:
                     print("Usage: :highlight on|off")
                 continue
             # ToDo 2 - Part 1 - Copy the logic from the highlight feature and adapt it for the search-mode
+            if raw.startswith(":search-mode"):
+                parts = raw.split()
+                if len(parts) == 2 and parts[1].lower() in ("and", "or"):
+                    search_mode = parts[1].upper()
+                    print("Search mode set to", search_mode)
+                else:
+                    print("Usage: :search-mode AND|OR")
+                continue
             print("Unknown command. Type :help for commands.")
             continue
 
@@ -118,7 +137,7 @@ def main() -> None:
         combined_results = []
 
         #  ToDo 1) Copy your solution from exercise 3
-        words = raw #  ... your code here ...
+        words = raw.split() #  ... your code here ...
 
         for word in words:
             # Searching for the word in all sonnets
@@ -135,13 +154,18 @@ def main() -> None:
                     result = results[i]
 
                     # ToDo 2 - Part 2: Here you have to find a way to extend for logical OR searches
-                    if combined_result["matches"] > 0 and result["matches"] > 0:
-                        # Only if we have matches in both results, we consider the sonnet (logical AND!)
-                        combined_results[i] = combine_results(combined_result, result)
-                    else:
-                        # Not in both. No match!
-                        combined_result["matches"] = 0
-
+                    if search_mode == "AND":
+                        if combined_result["matches"] > 0 and result["matches"] > 0:
+                            # Only if we have matches in both results, we consider the sonnet (logical AND!)
+                            combined_results[i] = combine_results(combined_result, result)
+                        else:
+                            # Not in both. No match!
+                            combined_result["matches"] = 0
+                    elif search_mode == "OR":
+                        if combined_result["matches"] > 0 or result["matches"] > 0:
+                            combined_results[i] = combine_results(combined_result, result)
+                        else:
+                            combined_result["matches"] = 0
         print_results(raw, combined_results, highlight)
 
 if __name__ == "__main__":
